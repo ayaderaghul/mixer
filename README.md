@@ -2,7 +2,8 @@
 mixing questions in a test
 
 # flow
-libre to convert docx to html
+- libre to convert docx to html
+- python to mix and output the tests with its answers
 
 # input format
 #### docx file should be formatted properly:

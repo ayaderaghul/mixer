@@ -4,7 +4,7 @@ mixing questions in a test.docx
 # flow
 - libre to save docx as html (not export) (to preserve all the images of equations and subscripts)
 - python to mix and output the tests (in html) with its answers (txt)
-- libre writer to save html as docx
+- libre writer to save html as docx, then export to pdf to preserve all the images
 
 # input format
 #### docx file should be formatted properly:

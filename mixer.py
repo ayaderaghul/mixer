@@ -2,154 +2,186 @@ from bs4 import BeautifulSoup
 import random
 import functools
 import re
-# docx file should be formatted properly:
-# mark the letter of the answer with underline (underline A for example)
-# there is only two dots in each answer, after the letter and at the end: "A. here comes the answer A. "
+from datetime import datetime
+import copy
 
-# convert from docx to html using libre
-htmlfile = open('output_newest_html.html')
+INPUTFILE = 'de_chua_tron_091122.html'
+N = 4 # number of mixed tests, usually 4 or 8
 
+htmlfile = open(INPUTFILE)
 index = htmlfile.read()
 
 S = BeautifulSoup(index, 'lxml')
 
-divs = S.find_all('div')
+body = S.find('body')
+ps = body.find_all('p')
+print('ps:', ps[0])
+header = []
 
-# silent all the attributes of font, span, p .. tags
-for t in divs[2](['span']):
-    for a in ['class', 'style']:
-        del t[a]
-
-for t in divs[2](['img']):
-    for a in ['align', 'hspace']:
-        del t[a]
-
-for t in divs[2](['font', 'p']):
-    # t.decompose()
-    for a in ['face', 'size', 'style', 'color']:
-        del t[a]
-
-for t in divs[2](['br']):
-    t.decompose()
-
-lst = []
-for i in divs[2]:
-    lst.append(i)
-
-# each ol is a question
-qs = []
-for i in lst[4:-15]:
-    if str(i)[:2] == '<o':
-        qs.append(i)
+for i in body:
+    if str(i).find('Câu') < 0:
+        header.append([i])
     else:
-        qs[-1].append(i)
+        break
 
-# print(qs[0])
-# shuffle the questions
-random.shuffle(qs)
+footer = []
+fp = 0
 
-# shuffle the answers, save the answer with u tag
-ans = {}
-for i, o in enumerate(qs):
-    bold = S.new_tag('b')
-    bold.string = f"Câu {i + 1}:"
-    br = S.new_tag('br')
-    bold.append(br)
-    p = S.new_tag('p')
-    p.insert(0, bold)
-    # g = o.select('.Graph')
+for i,e in enumerate(body):
+    if str(e).find('ẾT') >= 0:
+        fp = i
+        break
 
-    imgs = o.find_all('img')
-    gs = []
-    for img in imgs:
-        if 'height' in img.attrs:
-            if int(img.attrs['height']) >= 40:
-                gs.append(img)
-    if len(gs) >= 1:
-        for g in gs:
-            lp = len(p)
-            p.insert(lp, g)
-    o.insert(0, p)
-    l = len(o)
-    b = S.new_tag('br')
-    o.insert(l, b)
-    o.name='p'
-    lis = o.find_all('li')
-    for li in lis:
-        li.name = 'p'
-    # qnum = o.attrs['start']
-    a = o.find_all('u')
-    at = list(map(lambda x: [*x.text], a))
-    at = [item for sublist in at for item in sublist]
-    al = ['A', 'B', 'C', 'D']
-    at = list(filter(lambda x: x in al, at))
-    atn = al.index(at[0])
-    # ans[i+1] = at[0]
-    for u in o(['u']):
-        u.name = 'span'
-    qp = list(o.children)[:4]
-    lp = list(o.children)[-1]
-    ap = list(o.children)[4:-1]
-    fap = list(filter(lambda x: x != '\n', ap))
-    ep = S.new_tag('p')
-    ep.string='\n'
-    ep2 = S.new_tag('p')
-    ep2.attrs['lang'] = 'en-US'
-    ep2.string='\n'
-    ep3 = S.new_tag('p')
-    ep3.string='\n\n'
-    fap2 = list(filter(lambda x: x != ep and x != ep2 and x.text != ep3.text, fap))
-    no = [0,1,2,3]
-    random.shuffle(no)
-    if len(fap2) == 1:
-        s = str(fap2[0])
-    elif len(fap2) == 2:
-        s = str(fap2[0]) + str(fap2[1])
-    else:
-        s = ''.join(list(map(lambda x: str(x), fap2)))
+for i,e in enumerate(body):
+    if i >= fp:
+        footer.append(e)
 
-    ps = [m.start() for m in re.finditer('\.', s)]
-    # fps = list(filter(lambda x: s[x-1] != '>', ps))
-    fps = [ps[0]]
-    for k in range(1,len(ps)-1,1):
-        if s[ps[k]-2:ps[k]] == 'i>' or s[ps[k]+1:ps[k]+4] == 'gif' or s[ps[k]+1:ps[k]+4] == 'png':
-            continue
+
+tests = {}
+for i in range(N):    
+    tests[f'S{i}'] = copy.copy(body)
+
+def shuffle_qs(body):
+    qs = []
+    for i in body:
+        if str(i).find('Câu') >= 0:
+            qs.append([i])
         else:
-            fps.append(ps[k])
-    fps.append(ps[-1])
+            if len(qs) < 1:
+                continue
+            else:
+                qs[-1].append(i)
+    random.shuffle(qs)
+    return qs
 
-    sapA = s[fps[0]+1:fps[1]] + '<br/>'
-    sapB = s[fps[2]+1:fps[3]] + '<br/>'
-    sapC = s[fps[4]+1:fps[5]] + '<br/>'
-    sapD = s[fps[6]+1:fps[7]] + '<br/>'
+qs = shuffle_qs(tests['S0'])
+print('qs: ', qs)
+def mix(qs):
+    mixed = []
+    correctans = []
+    print('qs:', qs)
+    for i, q in enumerate(qs):
+        print('q: ',q)
+        bold = S.new_tag('b')
+        bold.string = f"Câu {i + 1}:"
+        br = S.new_tag('br')
+        bold.append(br)
 
-    l = [sapA, sapB, sapC, sapD]
-    nl = []
-    for j in range(4):
-        # nl.append(l[no[j]].replace(al[no[j]], al[j]))
-        nl.append(al[j] + '. ' + l[no[j]])
-        if no[j] == atn:
-            ans[i+1] = al[j]
-    hnl = list(map(lambda x: BeautifulSoup(x, 'html.parser'), nl))  
-    r = qp + hnl + [lp]
-    r2 = list(map(lambda x: str(x), r))
-    r3 = ''.join(r2)
-    r4 = BeautifulSoup(r3, 'html.parser')
+        p = S.new_tag('p')
+        p.insert(0, bold)    
 
-    o = r4
-    qs[i] = o
-    # if i < 5:
-    #     print(i)
-    #     print(qs[i])
-    #     print('\n')
+        newq = S.new_tag('p')
+        newq.insert(0, p)
 
-mixed = list(map(lambda x: str(x), qs))
 
-with open('de_da_tron.html', 'w') as f:
-    for i in mixed:
-        f.write(i)
+        imgp = S.new_tag('p')
+        print(q)
+        imgs = q[2].find_all('img')
+        gs = []
+        for img in imgs:
+            if 'height' in img.attrs:
+                if int(img.attrs['height']) >= 40:
+                    gs.append(img)
+        if len(gs) >= 1:
+            for g in gs:
+                lp = len(imgp)
+                imgp.insert(lp, g)
 
-with open('cau_tra_loi.docx', 'w') as f:
-    sa = sorted(ans.items())
-    for i in sa:
-        f.write(f'Câu {i[0]}: {i[1]}\n')
+
+        newq.insert(len(newq), imgp)
+
+        newq.insert(len(newq), q[2])
+
+        ANS = ['A', 'B', 'C', 'D']
+
+
+        if len(list(filter(lambda y: y >=0, list(map(lambda x: str(x).find('table'), q))))) > 0:
+            table = q[4]
+            tds = table.find_all('td')
+            random.shuffle(tds)
+
+            newans = []
+            for i, td in enumerate(tds):
+                s = str(td)
+                if s.find('<u>') >= 0 and s.find('</u>') >= 0:
+                    correctans.append(ANS[i])
+                dots = [dot.start() for dot in re.finditer('\.', s)]
+                dot1 = dots[0]
+                dot2 = dots[-1]
+
+                newan = ANS[i] + s[dot1:dot2]
+                newantag = S.new_tag('td', attrs={"style":"border: none; padding: 0in", "width":"25%"})
+                newantag.insert(0, BeautifulSoup(newan, 'html.parser'))
+                newans.append(newantag)
+            newtable = S.new_tag('table', attrs={"cellpadding":"0", "cellspacing":"0", "width":"100%"})
+            newcol1 = S.new_tag('col', attrs={"width":"64"})
+            newcol2 = S.new_tag('col', attrs={"width":"64"})
+            newcol3 = S.new_tag('col', attrs={"width":"64"})
+            newcol4 = S.new_tag('col', attrs={"width":"64"})
+            newtr = S.new_tag('tr', attrs={"valign":"top"})
+
+            newtable.insert(0, newcol1)
+            newtable.insert(1, newcol2)
+            newtable.insert(2, newcol3)
+            newtable.insert(3, newcol4)
+            newtable.insert(4, newtr)
+
+
+            for an in newans:
+                newtable.insert(len(newtable), an)
+            
+            newq.insert(len(newq), newtable)
+        else:
+            validans = [q[4], q[6], q[8], q[10]]
+            
+            random.shuffle(validans)
+            newans = []
+            for i, an in enumerate(validans):
+                s = str(an)
+                if s.find('<u>') >= 0 and s.find('</u>') >= 0:
+                    correctans.append(ANS[i])
+                dots = [dot.start() for dot in re.finditer('\.', s)]
+                dot1 = dots[0]
+                dot2 = dots[-1]
+
+                newan = ANS[i] + s[dot1:dot2]
+                newantag = S.new_tag('p')
+                newantag.insert(0, BeautifulSoup(newan, 'html.parser'))
+                newans.append(newantag)
+
+            newq.insert(len(newq), newans[0])
+            newq.insert(len(newq), newans[1])
+            newq.insert(len(newq), newans[2])
+            newq.insert(len(newq), newans[3])
+
+        mixed.append(newq)
+    return mixed
+
+mixeds = []
+for k,v in tests:
+    mix(v)
+
+def output_test(mixed):
+    testID = random.randint(0,100)
+
+    if testID <10:
+        id = '00' + str(testID)
+    else:
+        id = '0' + str(testID)
+
+    with open(f'de_da_tron_{id}.html', 'w') as f:
+        for i in header:
+            f.write(str(i[0]))
+        f.write(f'MÃ ĐỀ: {id}\n')
+        for i in mixed:
+            f.write(str(i))
+        for i in footer:
+            f.write(str(i))
+
+with open('cau_tra_loi.docx', 'a') as f:
+    f.write(f'MÃ ĐỀ: {id}\n')
+    for i, an in enumerate(correctans):
+        f.write(f'Câu {i+1}: {an}\n')
+    f.write('\n')
+print(id)
+
